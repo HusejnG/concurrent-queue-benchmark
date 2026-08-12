@@ -61,13 +61,18 @@ On Windows with Visual Studio, the same two commands work from a Developer
 Command Prompt, or you can open the folder directly in Visual Studio /
 VS Code with the CMake Tools extension.
 
+**Important:** always benchmark a **Release** build. A Debug build (MSVC in
+particular) adds significant overhead to STL containers like `std::queue`
+via iterator checking, which distorts the mutex-based queue's numbers far
+more than the lock-free one and makes the comparison meaningless.
+
 Unit tests are built automatically (Google Test is fetched via
 `FetchContent`, no manual install needed).
 
 ## Running the benchmark
 
 ```bash
-./build/pc_benchmark --nItems 2000000 --nProducers 4 --nConsumers 4 --bufferSize 1024 --mode both
+./build/Release/pc_benchmark.exe --nItems 2000000 --nProducers 4 --nConsumers 4 --bufferSize 1024 --mode both
 ```
 
 | Flag | Meaning | Default |
@@ -98,38 +103,31 @@ to exercise the remainder-handling path.
 
 ## Sample results
 
-Measured on a **1-vCPU cloud sandbox** (Intel Xeon @ 2.80GHz) — a
-single-core machine means producers and consumers are time-sliced rather
-than truly running in parallel, so these numbers understate the advantage
-a real multi-core machine would show. Re-run `pc_benchmark` on your own
-hardware (`nproc` to check core count) for representative numbers before
-quoting them anywhere serious.
-
-`--nItems 2000000`, buffer size 1024:
+Measured on a laptop with an **Intel Core i7-6700HQ @ 2.60GHz (4 cores /
+8 logical processors)**, Release build, `--nItems 2000000`, buffer size 1024:
 
 | Producers × Consumers | Mutex (items/s) | Lock-free (items/s) | Speedup |
 |---|---|---|---|
-| 1 × 1 | 7,273,821 | 21,406,181 | 2.94x |
-| 4 × 4 | 6,475,409 | 19,551,197 | 3.02x |
-| 8 × 8 | 3,813,987 | 17,708,755 | 4.64x |
+| 1 × 1 | 6,745,472 | 34,431,408 | 5.10x |
+| 4 × 4 | 3,874,244 | 8,273,365 | 2.14x |
+| 8 × 8 | 4,121,476 | 6,287,914 | 1.53x |
 
-With a deliberately tiny buffer (size 16, `4 × 4` threads) to force
-constant blocking/contention:
+Correctness verified on every run (`consumed == nItems`, checksum matches).
 
-| Queue | Throughput (items/s) | Speedup |
-|---|---|---|
-| Mutex | 723,745 | — |
-| Lock-free | 2,701,093 | 3.73x |
-
-The pattern holds across every configuration tested here: the mutex-based
-queue's throughput degrades faster as thread count grows or buffer size
-shrinks, because more threads means more contention on the same lock and
-more OS-level wake-ups. The lock-free queue's CAS loop degrades more
-gracefully under the same pressure.
+The pattern worth noting: **speedup is highest at 1×1 and shrinks as
+thread count grows**, which makes sense on a 4-core/8-thread CPU — at 1×1
+there's no contention at all, so the benchmark measures pure per-operation
+overhead (mutex/condition_variable machinery vs. a handful of atomic
+instructions). At 8×8, there are 16 software threads competing for 8
+hardware threads, so both queues are increasingly bottlenecked by CPU
+availability rather than by the synchronization primitive itself — the
+lock-free queue still wins, but the gap narrows because the hardware,
+not the queue design, is now the limiting factor.
 
 ## Possible extensions
 
 - Latency histograms (p50/p99) in addition to aggregate throughput
 - A single-producer/single-consumer lock-free variant (can drop the CAS
   loop entirely and just use plain atomic loads/stores)
-- NUMA-aware benchmarking on multi-socket machines
+- Re-run at thread counts between 1 and physical core count to find where
+  contention actually starts to dominate on a given machine
