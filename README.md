@@ -3,12 +3,12 @@
 A multi-producer/multi-consumer benchmark in modern C++ comparing two
 thread-safe bounded queue implementations:
 
-- **`BlockingQueue<T>`** — a classic design built on `std::mutex` and
+- **`BlockingQueue<T>`** - a classic design built on `std::mutex` and
   `std::condition_variable`. Producers block when the queue is full,
   consumers block when it's empty.
-- **`LockFreeQueue<T>`** — a bounded MPMC ring buffer built on
+- **`LockFreeQueue<T>`** - a bounded MPMC ring buffer built on
   `std::atomic`, following the Dmitry Vyukov sequence-number design. No
-  mutex, no OS-level blocking — just compare-and-swap loops.
+  mutex, no OS-level blocking - just compare-and-swap loops.
 
 Both queues expose the same interface (`push`, `pop`, `shutdown`), so the
 exact same producer/consumer driver code (`include/producer_consumer.h`)
@@ -21,7 +21,7 @@ programs.
 A mutex is simple and correct, but it interacts with the OS scheduler: a
 thread can be preempted while holding the lock, and waking a blocked thread
 means a context switch. That's fine for most software, but it makes
-worst-case latency hard to bound — which matters in real-time and embedded
+worst-case latency hard to bound - which matters in real-time and embedded
 contexts (e.g. handing data from an interrupt handler to a main loop, where
 you cannot afford to have that handoff blocked on scheduling).
 
@@ -115,7 +115,7 @@ Measured on a laptop with an **Intel Core i7-6700HQ @ 2.60GHz (4 cores /
 Correctness verified on every run (`consumed == nItems`, checksum matches).
 
 The pattern worth noting: **speedup is highest at 1×1 and shrinks as
-thread count grows**, which makes sense on a 4-core/8-thread CPU — at 1×1
+thread count grows**, which makes sense on a 4-core/8-thread CPU - at 1×1
 there's no contention at all, so the benchmark measures pure per-operation
 overhead (mutex/condition_variable machinery vs. a handful of atomic
 instructions). At 8×8, there are 16 software threads competing for 8
