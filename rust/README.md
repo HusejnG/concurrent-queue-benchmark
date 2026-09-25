@@ -38,6 +38,35 @@ Model checking with [loom](https://github.com/tokio-rs/loom):
 RUSTFLAGS="--cfg loom" LOOM_MAX_PREEMPTIONS=2 cargo test --release --test loom
 ```
 
+## Results
+
+Same machine and settings as the C++ numbers in the main README: Intel
+Core i7-6700HQ (4 cores / 8 threads), Windows, release builds,
+`--nItems 2000000`, buffer size 1024. Single runs, so treat small
+differences as noise.
+
+| Producers × Consumers | C++ mutex | Rust mutex | C++ lock-free | Rust lock-free |
+|---|---|---|---|---|
+| 1 × 1 | 6,745,472 | 3,182,211 | 34,431,408 | 35,848,975 |
+| 4 × 4 | 3,874,244 | 2,168,340 | 8,273,365 | 8,471,496 |
+| 8 × 8 | 4,121,476 | 2,230,078 | 6,287,914 | 5,463,217 |
+
+(items per second)
+
+**Lock-free: the two languages perform the same.** At 1×1 and 4×4 the
+Rust version is within 5% of C++, which is what you'd expect from the
+same algorithm under the same memory model. The compile-time guarantees
+cost nothing measurable on the hot path. At 8×8, sixteen threads share
+eight hardware threads and results are the least stable of the three.
+
+**Mutex: the Rust version is roughly half as fast.** The queue logic is
+equivalent, so the gap comes from how each standard library implements
+`Mutex` and `Condvar` on Windows and the code around them. I haven't
+profiled it yet. Because of this, the Rust lock-free-vs-mutex speedup
+(11.3x at 1×1) looks larger than the C++ one (5.1x); that ratio says more
+about the mutex baseline than about either language, and the lock-free
+columns are the fair comparison.
+
 ## What stayed the same
 
 The algorithm and the memory orderings are identical to the C++ version.
