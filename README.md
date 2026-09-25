@@ -43,7 +43,10 @@ concurrent-queue-benchmark/
 │   └── main.cpp                # CLI driver, runs both queues, prints comparison
 ├── tests/
 │   └── test_queues.cpp         # Google Test correctness tests
-├── .github/workflows/ci.yml    # build + test on push (Linux & Windows)
+├── rust/                       # Rust port of both queues (see rust/README.md)
+├── .github/workflows/
+│   ├── ci.yml                  # C++ build + test (Linux & Windows)
+│   └── rust.yml                # Rust fmt, clippy, tests + loom model checking
 └── CMakeLists.txt
 ```
 
@@ -99,7 +102,8 @@ ctest --output-on-failure
 
 Tests cover both queues under single-threaded, multi-threaded, and
 tiny-buffer (high contention) conditions, plus a non-divisible item count
-to exercise the remainder-handling path.
+to exercise the remainder-handling path. Two further tests pin down a
+capacity bug that was found while porting the queue to Rust (below).
 
 ## Sample results
 
@@ -123,6 +127,22 @@ hardware threads, so both queues are increasingly bottlenecked by CPU
 availability rather than by the synchronization primitive itself — the
 lock-free queue still wins, but the gap narrows because the hardware,
 not the queue design, is now the limiting factor.
+
+## Rust port
+
+The [`rust/`](rust/) folder contains a Rust implementation of both queues
+with the same algorithm, memory orderings, CLI flags and output format, so
+the two languages can be compared on identical work. Beyond the port
+itself, it adds model-checked concurrency tests with
+[loom](https://github.com/tokio-rs/loom), which explore the possible
+thread interleavings instead of relying on the OS scheduler to hit them.
+
+Porting it also surfaced a bug in the original C++ code: with a capacity
+of 1, the lock-free queue's "slot filled" and "slot free" sequence numbers
+collide, so a second push silently overwrote an unread item and the next
+pop spun forever. The existing tests all used larger buffers. Both
+versions now reject capacities below 2, and both test suites cover it.
+Details in [rust/README.md](rust/README.md).
 
 ## Possible extensions
 
