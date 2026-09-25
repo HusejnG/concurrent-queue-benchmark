@@ -1,0 +1,23 @@
+[package]
+name = "cq-rust"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.70"
+description = "Rust port of the mutex vs. lock-free MPMC queue benchmark"
+license = "MIT"
+publish = false
+
+[[bin]]
+name = "pc_benchmark"
+path = "src/main.rs"
+
+# loom is only pulled in for `RUSTFLAGS="--cfg loom"` builds, so normal
+# builds of this crate have zero dependencies.
+[target.'cfg(loom)'.dependencies]
+loom = "0.7"
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(loom)'] }
+
+[profile.release]
+debug = false

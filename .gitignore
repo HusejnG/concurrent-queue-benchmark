@@ -7,3 +7,6 @@ out/
 .vscode/
 CMakeFiles/
 CMakeCache.txt
+
+# Rust
+rust/target/
