@@ -21,14 +21,19 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <stdexcept>
 #include <thread>
 #include <vector>
 
 template <typename T>
 class LockFreeQueue {
 public:
+    // Capacity must be at least 2. A slot is marked "filled" with sequence
+    // pos + 1 and "free for the next lap" with pos + capacity; with a
+    // capacity of 1 those two values are equal, so a producer cannot tell a
+    // full slot from an empty one and silently overwrites an unread item.
     explicit LockFreeQueue(std::size_t capacity)
-        : buffer_(capacity), capacity_(capacity) {
+        : buffer_(check_capacity(capacity)), capacity_(capacity) {
         for (std::size_t i = 0; i < capacity_; ++i) {
             buffer_[i].sequence.store(i, std::memory_order_relaxed);
         }
@@ -113,6 +118,13 @@ public:
     std::size_t capacity() const { return capacity_; }
 
 private:
+    static std::size_t check_capacity(std::size_t capacity) {
+        if (capacity < 2) {
+            throw std::invalid_argument("LockFreeQueue capacity must be at least 2");
+        }
+        return capacity;
+    }
+
     struct Cell {
         std::atomic<std::size_t> sequence;
         T data;

@@ -9,6 +9,8 @@
 
 #include <gtest/gtest.h>
 
+#include <stdexcept>
+
 #include "blocking_queue.h"
 #include "lockfree_queue.h"
 #include "producer_consumer.h"
@@ -90,4 +92,28 @@ TEST(LockFreeQueueApi, TryPopFailsWhenEmpty) {
     EXPECT_TRUE(q.try_pop(out));
     EXPECT_EQ(out, 42);
     EXPECT_FALSE(q.try_pop(out));
+}
+
+// Capacity 1 used to be accepted, but with a single slot the "filled" and
+// "free for next lap" sequence numbers collide: a second push overwrote the
+// unread item and the next pop spun forever. Found while porting the queue
+// to Rust (see rust/README.md).
+TEST(LockFreeQueueApi, RejectsCapacityBelowTwo) {
+    EXPECT_THROW(LockFreeQueue<int>(0), std::invalid_argument);
+    EXPECT_THROW(LockFreeQueue<int>(1), std::invalid_argument);
+    EXPECT_NO_THROW(LockFreeQueue<int>(2));
+}
+
+TEST(LockFreeQueueApi, CapacityTwoNeverOverwrites) {
+    LockFreeQueue<int> q(2);
+    for (int lap = 0; lap < 1000; ++lap) {
+        EXPECT_TRUE(q.try_push(lap));
+        EXPECT_TRUE(q.try_push(lap + 1));
+        EXPECT_FALSE(q.try_push(-1));
+        int out = 0;
+        EXPECT_TRUE(q.try_pop(out));
+        EXPECT_EQ(out, lap);
+        EXPECT_TRUE(q.try_pop(out));
+        EXPECT_EQ(out, lap + 1);
+    }
 }
