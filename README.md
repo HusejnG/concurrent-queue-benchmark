@@ -75,7 +75,8 @@ Unit tests are built automatically (Google Test is fetched via
 ## Running the benchmark
 
 ```bash
-./build/Release/pc_benchmark.exe --nItems 2000000 --nProducers 4 --nConsumers 4 --bufferSize 1024 --mode both
+./build/pc_benchmark --nItems 2000000 --nProducers 4 --nConsumers 4 --bufferSize 1024 --mode both                # Linux / macOS
+build\Release\pc_benchmark.exe --nItems 2000000 --nProducers 4 --nConsumers 4 --bufferSize 1024 --mode both     # Windows (MSVC)
 ```
 
 | Flag | Meaning | Default |
@@ -127,6 +128,21 @@ hardware threads, so both queues are increasingly bottlenecked by CPU
 availability rather than by the synchronization primitive itself — the
 lock-free queue still wins, but the gap narrows because the hardware,
 not the queue design, is now the limiting factor.
+
+Caveats worth keeping in mind when reading these numbers:
+
+- **Single runs on one machine.** No repeated runs, no variance. On a
+  different CPU the ratios can change noticeably, so the table shows a
+  trend, not a constant.
+- **Spinning vs. sleeping.** A lock-free producer or consumer that finds
+  the queue full or empty yields and retries; a mutex-based one sleeps on
+  the condition variable. Throughput alone favours spinning, because the
+  spinning thread burns CPU time that doesn't show up in items/s. A fairer
+  comparison would also report CPU time and latency percentiles (see
+  possible extensions).
+- **Shared counters in the timed loop.** The harness updates two shared
+  atomic counters per item for its correctness check, which adds the same
+  contention to both queues and narrows the measured gap.
 
 ## Rust port
 
